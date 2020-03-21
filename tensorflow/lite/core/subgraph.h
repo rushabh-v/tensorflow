@@ -31,6 +31,8 @@ limitations under the License.
 
 namespace tflite {
 
+namespace impl {
+
 // Forward declare since NNAPIDelegate uses Interpreter.
 class NNAPIDelegate;
 
@@ -114,15 +116,17 @@ class Subgraph {
   inline TfLiteStatus SetTensorParametersReadWrite(
       int tensor_index, TfLiteType type, const char* name,
       const std::vector<int>& dims, TfLiteQuantization quantization,
-      bool is_variable = false) {
+      bool is_variable = false, const size_t rank_dims_signature = 0,
+      const int* dims_signature = nullptr) {
     return SetTensorParametersReadWrite(tensor_index, type, name, dims.size(),
-                                        dims.data(), quantization, is_variable);
+                                        dims.data(), quantization, is_variable,
+                                        rank_dims_signature, dims_signature);
   }
-  TfLiteStatus SetTensorParametersReadWrite(int tensor_index, TfLiteType type,
-                                            const char* name, const size_t rank,
-                                            const int* dims,
-                                            TfLiteQuantization quantization,
-                                            bool is_variable = false);
+  TfLiteStatus SetTensorParametersReadWrite(
+      int tensor_index, TfLiteType type, const char* name, const size_t rank,
+      const int* dims, TfLiteQuantization quantization,
+      bool is_variable = false, const size_t rank_dims_signature = 0,
+      const int* dims_signature = nullptr);
 
   // WARNING: Experimental interface, subject to change
   // Overrides execution plan. This bounds checks indices sent in.
@@ -341,6 +345,13 @@ class Subgraph {
     void EndEvent(uint32_t event_handle) override {
       if (!profiler_) return;
       profiler_->EndEvent(event_handle);
+    }
+
+    void AddEvent(const char* tag, EventType event_type,
+                  uint32_t event_metadata, uint64_t start,
+                  uint64_t end) override {
+      if (!profiler_) return;
+      profiler_->AddEvent(tag, event_type, event_metadata, start, end);
     }
 
    private:
@@ -665,6 +676,10 @@ class Subgraph {
   // A map of resources. Owned by interpreter and shared by multiple subgraphs.
   resource::ResourceMap* resources_ = nullptr;
 };
+
+}  // namespace impl
+
+using Subgraph = impl::Subgraph;
 
 }  // namespace tflite
 #endif  // TENSORFLOW_LITE_CORE_SUBGRAPH_H_

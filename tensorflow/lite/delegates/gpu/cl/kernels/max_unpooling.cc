@@ -25,7 +25,7 @@ namespace gpu {
 namespace cl {
 namespace {
 
-std::string GetMaxUnoolingKernelCode(
+std::string GetMaxUnpoolingKernelCode(
     const OperationDef& op_def, const CLDevice& device,
     const std::vector<ElementwiseOperation*>& linked_operations) {
   TensorCodeGenerator src("src_data",
@@ -57,7 +57,7 @@ std::string GetMaxUnoolingKernelCode(
   c += "  int Y = get_global_id(1);\n";
   c += "  int Z = get_global_id(2);\n";
   c += "  if (X >= dst_size.x || Y >= dst_size.y || Z >= dst_size.z) return;\n";
-  if (op_def.batch_support) {
+  if (op_def.IsBatchSupported()) {
     c += "  int linear_id = get_global_id(0);\n";
     c += "  int X0 = linear_id / dst_size.w;\n";
     c += "  int B = linear_id % dst_size.w;\n";
@@ -82,7 +82,7 @@ std::string GetMaxUnoolingKernelCode(
     c += "  int4 ind = convert_int4(" + src_ind.Read("src_adr", address_mode) +
          ");\n";
   }
-  if (op_def.batch_support) {
+  if (op_def.IsBatchSupported()) {
     c += "  int t_x = X0 - (src_x0 * stride.x - padding.x);\n";
   } else {
     c += "  int t_x = X - (src_x * stride.x - padding.x);\n";
@@ -102,7 +102,7 @@ std::string GetMaxUnoolingKernelCode(
   return c;
 }
 
-std::string GetMaxUnooling3DKernelCode(
+std::string GetMaxUnpooling3DKernelCode(
     const OperationDef& op_def, const CLDevice& device,
     const std::vector<ElementwiseOperation*>& linked_operations) {
   TensorCodeGenerator src(
@@ -129,7 +129,7 @@ std::string GetMaxUnooling3DKernelCode(
   c += dst.GetDeclaration(AccessType::WRITE) + ",\n";
   c += "    int4 src_size,      \n";
   c += "    int4 dst_size,      \n";
-  if (op_def.batch_support) {
+  if (op_def.IsBatchSupported()) {
     c += "    int batch_size,          \n";
   }
   c += "    int4 kernel_size,   \n";
@@ -142,7 +142,7 @@ std::string GetMaxUnooling3DKernelCode(
   c += "  int S = linear_id_z % dst_size.w;\n";
   c += "  int Z = linear_id_z / dst_size.w;\n";
   c += "  if (X >= dst_size.x || Y >= dst_size.y || Z >= dst_size.z) return;\n";
-  if (op_def.batch_support) {
+  if (op_def.IsBatchSupported()) {
     c += "  int linear_id = get_global_id(0);\n";
     c += "  int X0 = linear_id / batch_size;\n";
     c += "  int B = linear_id % batch_size;\n";
@@ -170,7 +170,7 @@ std::string GetMaxUnooling3DKernelCode(
     c += "  int4 ind = convert_int4(" + src_ind.Read("src_adr", address_mode) +
          ");\n";
   }
-  if (op_def.batch_support) {
+  if (op_def.IsBatchSupported()) {
     c += "  int t_x = X0 - (src_x0 * stride.x - padding.x);\n";
   } else {
     c += "  int t_x = X - (src_x * stride.x - padding.x);\n";
@@ -219,7 +219,7 @@ MaxUnpooling& MaxUnpooling::operator=(MaxUnpooling&& kernel) {
 }
 
 Status MaxUnpooling::Compile(const CreationContext& creation_context) {
-  const auto code = GetMaxUnoolingKernelCode(
+  const auto code = GetMaxUnpoolingKernelCode(
       definition_, *creation_context.device, linked_operations_);
   return creation_context.cache->GetOrCreateCLKernel(
       code, "main_function", *creation_context.context,
@@ -292,7 +292,7 @@ MaxUnpooling3D& MaxUnpooling3D::operator=(MaxUnpooling3D&& kernel) {
 }
 
 Status MaxUnpooling3D::Compile(const CreationContext& creation_context) {
-  const auto code = GetMaxUnooling3DKernelCode(
+  const auto code = GetMaxUnpooling3DKernelCode(
       definition_, *creation_context.device, linked_operations_);
   return creation_context.cache->GetOrCreateCLKernel(
       code, "main_function", *creation_context.context,
@@ -307,7 +307,7 @@ Status MaxUnpooling3D::BindArguments() {
   RETURN_IF_ERROR(kernel_.SetMemoryAuto(dst_[0]->GetMemoryPtrForWriting()));
   RETURN_IF_ERROR(kernel_.SetBytesAuto(src_[0]->GetWBatchedHDS()));
   RETURN_IF_ERROR(kernel_.SetBytesAuto(dst_[0]->GetWBatchedHDS()));
-  if (definition_.batch_support) {
+  if (definition_.IsBatchSupported()) {
     RETURN_IF_ERROR(kernel_.SetBytesAuto(src_[0]->Batch()));
   }
   RETURN_IF_ERROR(kernel_.SetBytesAuto(
